@@ -1,3 +1,4 @@
+import subprocess
 import traceback
 from io import StringIO
 from contextlib import redirect_stdout
@@ -6,40 +7,36 @@ import gradio as gr
 from modules import script_callbacks, shared
 from modules.ui_components import ResizeHandleRow
 
-def execute(code):
-    io = StringIO()
+def execute_shell_command(command):
+    try:
+        result = subprocess.run(
+            command, 
+            shell=True, 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.PIPE, 
+            text=True
+        )
+        output = result.stdout + result.stderr
+    except Exception as e:
+        output = str(e)
     
-    with redirect_stdout(io):
-        try:
-            exec(code)
-        except Exception:
-            trace = traceback.format_exc().split('\n')
-            del trace[2]
-            del trace[1]
-
-            print('\n'.join(trace))
-
-    return io.getvalue()
+    return output
     
-def create_code_tab(language, input_default, output_default, lines):
-    with gr.Tab(language.capitalize(), elem_id=f"qic-{language}-tab"):
+def create_shell_tab(lines):
+    with gr.Tab("Shell", elem_id="qic-shell-tab"):
         with gr.Row(), ResizeHandleRow(equal_height=False):
             with gr.Column(scale=1):
-                inp = gr.Code(value=input_default, language=language, label=f"{language.capitalize()} code", lines=lines, elem_id=f"qic-{language}-input", elem_classes="qic-console")
-                btn = gr.Button("Run", variant='primary', elem_id=f"qic-{language}-submit")
+                inp = gr.Textbox(value="", label="Shell command", lines=lines, elem_id="qic-shell-input", elem_classes="qic-console")
+                btn = gr.Button("Run", variant='primary', elem_id="qic-shell-submit")
             
             with gr.Column(scale=1):
-                out = gr.Code(value=output_default, language=language if getattr(shared.opts, f'qic_use_syntax_highlighting_{language}_output') else None, label="Output", lines=lines, interactive=False, elem_id=f"qic-{language}-output", elem_classes="qic-console")
-        if language == "python":
-            btn.click(fn=execute, inputs=inp, outputs=out)
-        else:
-            btn.click(fn=lambda x: x, _js="qic.execute", inputs=inp, outputs=out)
-
+                out = gr.Code(value="# Output will appear here\n\n# Tip: Press `ctrl+space` to execute the current command", language="shell", label="Output", lines=lines, interactive=False, elem_id="qic-shell-output", elem_classes="qic-console")
+        
+        btn.click(fn=execute_shell_command, inputs=inp, outputs=out)
 
 def on_ui_tabs():
     with gr.Blocks(elem_id="qic-root", analytics_enabled=False) as ui_component:
-        create_code_tab("python", "import gradio as gr\nfrom modules import shared, scripts\n\nprint(f\"Current loaded checkpoint is {shared.opts.sd_model_checkpoint}\")", "# Output will appear here\n\n# Tip: Press `ctrl+space` to execute the current code", shared.opts.qic_default_num_lines)
-        create_code_tab("javascript", "const app = gradioApp();\n\nconsole.log(`A1111 is running on ${gradio_config.root}`)", "// Output will appear here\n\n// Tip: Press `ctrl+space` to execute the current code", shared.opts.qic_default_num_lines)
+        create_shell_tab(shared.opts.qic_default_num_lines)
 
         return [(ui_component, "QIC Console", "qic-console")] 
 
@@ -47,8 +44,6 @@ def on_ui_tabs():
 def on_ui_settings():
     settings_section = ('qic-console', "QIC Console")
     options = {
-        "qic_use_syntax_highlighting_python_output": shared.OptionInfo(True, "Use syntax highlighting on Python output console", gr.Checkbox).needs_reload_ui(),
-        "qic_use_syntax_highlighting_javascript_output": shared.OptionInfo(True, "Use syntax highlighting on Javascript output console", gr.Checkbox).needs_reload_ui(),
         "qic_default_num_lines": shared.OptionInfo(30, "Default number of console lines", gr.Number, {"precision": 0}).needs_reload_ui(),
         "qic_hide_warning": shared.OptionInfo(False, "Hide warning message", gr.Checkbox).needs_reload_ui(),
     }

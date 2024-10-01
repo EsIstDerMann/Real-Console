@@ -20,11 +20,7 @@ def execute(code):
             print('\n'.join(trace))
 
     return io.getvalue()
-
-# Comment out the warning function since we're bypassing the flag check
-# def warn_allow_code():
-#     return "⚠️ Code could not be executed. Please relaunch the UI with the --allow-code flag enabled"
-
+    
 def create_code_tab(language, input_default, output_default, lines):
     with gr.Tab(language.capitalize(), elem_id=f"qic-{language}-tab"):
         with gr.Row(), ResizeHandleRow(equal_height=False):
